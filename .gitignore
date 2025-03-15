@@ -1,7 +1,22 @@
-# Byte-compiled / optimized / DLL files
+# Ignorar arquivos compilados do Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
+
+# Ignorar o banco de dados
+dados/
+*.db
+
+# Ignorar pastas de imagens (fotos de alunos e professores)
+imagens/alunos/
+imagens/professores/
+
+# Ignorar pastas de documentos gerados
+documentos/
+
+# Ignorar pastas temporárias
+temp/
 
 # C extensions
 *.so
