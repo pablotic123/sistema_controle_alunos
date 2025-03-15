@@ -2,6 +2,8 @@
 
 ![Python](https://img.shields.io/badge/Python-3.12-blue.svg) ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
+OBS: Texto do README.md gerado po IA
+
 Bem-vindo ao **Sistema de Controle de Alunos**, uma aplicação desktop desenvolvida em Python com Tkinter para gerenciar instituições, cursos, turmas, professores e alunos. Este projeto utiliza uma interface gráfica intuitiva e um banco de dados SQLite para armazenar os dados, permitindo cadastro, consulta e exportação de relatórios em PDF, Excel e Word.
 
 ## Índice
