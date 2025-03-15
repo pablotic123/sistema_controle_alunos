@@ -32,6 +32,9 @@ class SistemaView:
         self.current_frame = None
         self.criar_menu()
 
+    def mostrar_mensagem(self, titulo, mensagem):
+        messagebox.showinfo(titulo, mensagem)
+
     def configurar_estilo(self):
         self.style.theme_use("clam")
         self.style.configure("TLabel", background=self.BG_COLOR, foreground=self.FG_COLOR, font=self.FONT)

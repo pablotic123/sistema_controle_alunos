@@ -15,6 +15,7 @@ from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from tkinter import messagebox
 from PIL import Image, ImageTk
+import openpyxl
 import tkinter as tk
 import re
 from datetime import datetime
@@ -423,10 +424,80 @@ class SistemaController:
         combo.set("Todas")
 
     def exportar_carometro_excel(self):
-        turmas = ["Todas"] + [f"{t[0]} - {t[1]}" for t in self.model.carregar_turmas()]
-        combo = self.view.exportar_carometro("Excel", self.exportar_excel)
-        combo["values"] = turmas
-        combo.set("Todas")
+        # Criar a pasta documentos/ se não existir
+        documentos_dir = "documentos"
+        if not os.path.exists(documentos_dir):
+            os.makedirs(documentos_dir)
+
+        # Gerar o nome do arquivo com a data atual
+        data_atual = datetime.now().strftime("%Y-%m-%d")
+        nome_arquivo = f"Carometro_{data_atual}.xlsx"
+        caminho_arquivo = os.path.join(documentos_dir, nome_arquivo)
+
+        # Lógica para carregar turmas e alunos
+        turmas = self.model.carregar_turmas()
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.title = "Carômetro"
+
+        # Ajustar a largura das colunas para melhor visualização
+        sheet.column_dimensions['A'].width = 10  # Coluna para ID
+        sheet.column_dimensions['B'].width = 30  # Coluna para Nome
+        sheet.column_dimensions['C'].width = 20  # Coluna para Foto
+
+        # Adicionar cabeçalhos
+        sheet['A1'] = "ID"
+        sheet['B1'] = "Nome"
+        sheet['C1'] = "Foto"
+
+        row = 2  # Linha inicial para dados
+        temp_files = []  # Lista para rastrear arquivos temporários
+        for aluno in self.model.carregar_alunos():
+            print(f"Tupla completa do aluno {aluno[1]}: {aluno}")  # Log da tupla completa
+            foto_path = aluno[3] if aluno[3] else None  # Índice 3 é o campo 'foto'
+            print(f"Tentando carregar foto para aluno {aluno[1]}: {foto_path} (Tipo: {type(foto_path)})")
+
+            if foto_path and isinstance(foto_path, str) and os.path.exists(foto_path):
+                try:
+                    print(f"Processando imagem em: {foto_path}")
+                    img = Image.open(foto_path)
+                    # Converter para modo RGB se necessário
+                    if img.mode == 'RGBA':
+                        print(f"Convertendo imagem {foto_path} de RGBA para RGB")
+                        img = img.convert('RGB')
+                    # Redimensionar a imagem para caber na célula
+                    img = img.resize((100, 100), Image.Resampling.LANCZOS)
+                    # Salvar temporariamente como JPEG
+                    temp_path = f"temp_{aluno[0]}.jpg"
+                    img.save(temp_path, "JPEG")
+                    temp_files.append(temp_path)  # Adicionar à lista de arquivos temporários
+                    print(f"Salvando imagem temporária em: {temp_path}")
+                    # Ajustar a altura da linha para a imagem
+                    sheet.row_dimensions[row].height = 80
+                    # Adicionar imagem ao Excel
+                    img_pil = openpyxl.drawing.image.Image(temp_path)
+                    img_pil.anchor = f"C{row}"
+                    sheet.add_image(img_pil)
+                    print(f"Imagem adicionada com sucesso para o aluno {aluno[1]}")
+                except Exception as e:
+                    print(f"Erro ao processar imagem {foto_path}: {e}")
+                    continue
+            else:
+                print(f"Foto não encontrada ou inválida para o aluno {aluno[1]}: {foto_path} (Existe? {os.path.exists(foto_path)})")
+
+            # Adicionar dados do aluno
+            sheet[f"A{row}"] = aluno[0]  # ID
+            sheet[f"B{row}"] = aluno[1]  # Nome
+            row += 1
+
+        # Salvar o arquivo Excel
+        workbook.save(caminho_arquivo)
+        # Remover arquivos temporários após o salvamento
+        for temp_file in temp_files:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+                print(f"Arquivo temporário {temp_file} removido com sucesso")
+        self.view.mostrar_mensagem("Sucesso", f"Exportação para Excel concluída! Arquivo salvo em {caminho_arquivo}")
 
     def exportar_carometro_word(self):
         turmas = ["Todas"] + [f"{t[0]} - {t[1]}" for t in self.model.carregar_turmas()]
