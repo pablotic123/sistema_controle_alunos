@@ -62,6 +62,14 @@ class SistemaModel:
         finally:
             conn.close()
 
+    def commit(self):
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.commit()
+            conn.close()
+        except sqlite3.Error as e:
+            print(f"Erro ao forçar commit: {e}")
+    
     def salvar_instituicao(self, id, nome):
         if id:
             self.executar_query("UPDATE instituicao SET nome = ? WHERE id = ?", (nome, id))
@@ -69,15 +77,21 @@ class SistemaModel:
             self.executar_query("INSERT INTO instituicao (nome) VALUES (?)", (nome,))
 
     def salvar_professor(self, id, nome, instituicao_id, foto):
-        with sqlite3.connect(self.db_path) as conn:
+        try:
+            conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             if id:
                 cursor.execute("UPDATE professor SET nome = ?, instituicao_id = ?, foto = ? WHERE id = ?", (nome, instituicao_id, foto, id))
             else:
                 cursor.execute("INSERT INTO professor (nome, instituicao_id, foto) VALUES (?, ?, ?)", (nome, instituicao_id, foto))
-                id = cursor.lastrowid  # Captura o ID gerado
+                id = cursor.lastrowid
             conn.commit()
             return id
+        except sqlite3.Error as e:
+            print(f"Erro SQL: {e}")
+            return None
+        finally:
+            conn.close()
         
     def salvar_curso(self, id, nome, instituicao_id):
         if id:
@@ -92,15 +106,21 @@ class SistemaModel:
             self.executar_query("INSERT INTO turma (nome, ano, curso_id) VALUES (?, ?, ?)", (nome, ano, curso_id))
 
     def salvar_aluno(self, id, nome, turma_id, foto):
-        with sqlite3.connect(self.db_path) as conn:
+        try:
+            conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             if id:
                 cursor.execute("UPDATE aluno SET nome = ?, turma_id = ?, foto = ? WHERE id = ?", (nome, turma_id, foto, id))
             else:
                 cursor.execute("INSERT INTO aluno (nome, turma_id, foto) VALUES (?, ?, ?)", (nome, turma_id, foto))
-                id = cursor.lastrowid  # Captura o ID gerado
+                id = cursor.lastrowid # Captura o ID gerado
             conn.commit()
             return id
+        except sqlite3.Error as e:
+            print(f"Erro SQL: {e}")
+            return None
+        finally:
+            conn.close()        
         
     def excluir_registro(self, tabela, id):
         self.executar_query(f"DELETE FROM {tabela} WHERE id = ?", (id,))

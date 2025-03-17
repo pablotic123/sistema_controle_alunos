@@ -129,7 +129,10 @@ class SistemaController:
         item = self.tree.selection()
         if item:
             id_value = self.tree.item(item[0], "values")[0]
+            print(f"Debug: ID selecionado = {id_value}")  # Adicionar log para depuração
             callback(int(id_value))
+        else:
+            print("Debug: Nenhum item selecionado na tabela")
 
     # Cadastros
     def cadastro_instituicao(self, id=None):
@@ -150,19 +153,37 @@ class SistemaController:
         self.entradas = self.view.cadastro_generico(f"Cadastro de Professor{' - Editar' if id else ''}", campos, salvar, excluir if id else None)
         if id:
             dados = self.model.executar_query("SELECT nome, instituicao_id, foto FROM professor WHERE id = ?", (id,), fetch=True)
+            print(f"Debug: Dados retornados para ID {id} = {dados}")  # Adicionar log
             if dados:
+                self.entradas["nome"].delete(0, tk.END)  # Limpar o campo antes de inserir
                 self.entradas["nome"].insert(0, dados[0][0])
-                self.entradas["instituição"].set(f"{dados[0][1]} - {self.model.executar_query('SELECT nome FROM instituicao WHERE id = ?', (dados[0][1],), fetch=True)[0][0]}")
-                if dados[0][2]:
-                    self.entradas["foto"].insert(0, dados[0][2])
+                instituicao_nome = self.model.executar_query("SELECT nome FROM instituicao WHERE id = ?", (dados[0][1],), fetch=True)
+                print(f"Debug: Instituição retornada = {instituicao_nome}")  # Adicionar log
+                if instituicao_nome:
+                    self.entradas["instituição"].set(f"{dados[0][1]} - {instituicao_nome[0][0]}")
+                else:
+                    messagebox.showerror("Erro", f"Instituição associada ao professor (ID {dados[0][1]}) não encontrada!")
+                    self.entradas["instituição"].set("")
+                base_dir = os.path.dirname(__file__)
+                foto_path = os.path.join(base_dir, dados[0][2]) if dados[0][2] else None
+                print(f"Debug: Caminho da foto = {foto_path}")  # Adicionar log
+                if foto_path and os.path.exists(foto_path):
+                    self.entradas["foto"].delete(0, tk.END)
+                    self.entradas["foto"].insert(0, foto_path)
                     try:
-                        img = Image.open(dados[0][2])
+                        img = Image.open(foto_path)
                         img = img.resize((150, 150), Image.Resampling.LANCZOS)
                         foto = ImageTk.PhotoImage(img)
                         self.entradas["foto_label"].config(image=foto)
                         self.entradas["foto_label"].image = foto
                     except Exception as e:
                         messagebox.showerror("Erro", f"Não foi possível carregar a imagem: {e}")
+                else:
+                    self.entradas["foto"].delete(0, tk.END)
+                    self.entradas["foto_label"].config(image="")  # Limpar a imagem se não houver foto
+            else:
+                messagebox.showerror("Erro", f"Professor com ID {id} não encontrado!")
+                self.view.tela_inicial()
 
     def cadastro_curso(self, id=None, tree=None):
         instituicoes = [f"{i[0]} - {i[1]}" for i in self.model.carregar_instituicoes()]
@@ -202,27 +223,40 @@ class SistemaController:
         campos = [("Nome", "entry", None), ("Turma", "combo", turmas), ("Foto", "foto", None)]
         def salvar(): self.salvar_aluno(id)
         def excluir(): self.excluir_aluno(id)
-        self.entradas = self.view.cadastro_generico(
-            f"Cadastro de Aluno{' - Editar' if id else ''}", 
-            campos, 
-            salvar, 
-            excluir if id else None
-        )
+        self.entradas = self.view.cadastro_generico(f"Cadastro de Aluno{' - Editar' if id else ''}", campos, salvar, excluir if id else None)
         if id:
             dados = self.model.executar_query("SELECT nome, turma_id, foto FROM aluno WHERE id = ?", (id,), fetch=True)
+            print(f"Debug: Dados retornados para ID {id} = {dados}")  # Adicionar log
             if dados:
+                self.entradas["nome"].delete(0, tk.END)  # Limpar o campo antes de inserir
                 self.entradas["nome"].insert(0, dados[0][0])
-                self.entradas["turma"].set(f"{dados[0][1]} - {self.model.executar_query('SELECT nome FROM turma WHERE id = ?', (dados[0][1],), fetch=True)[0][0]}")
-                if dados[0][2]:
-                    self.entradas["foto"].insert(0, dados[0][2])
+                turma_nome = self.model.executar_query("SELECT nome FROM turma WHERE id = ?", (dados[0][1],), fetch=True)
+                print(f"Debug: Turma retornada = {turma_nome}")  # Adicionar log
+                if turma_nome:
+                    self.entradas["turma"].set(f"{dados[0][1]} - {turma_nome[0][0]}")
+                else:
+                    messagebox.showerror("Erro", f"Turma associada ao aluno (ID {dados[0][1]}) não encontrada!")
+                    self.entradas["turma"].set("")
+                base_dir = os.path.dirname(__file__)
+                foto_path = os.path.join(base_dir, dados[0][2]) if dados[0][2] else None
+                print(f"Debug: Caminho da foto = {foto_path}")  # Adicionar log
+                if foto_path and os.path.exists(foto_path):
+                    self.entradas["foto"].delete(0, tk.END)
+                    self.entradas["foto"].insert(0, foto_path)
                     try:
-                        img = Image.open(dados[0][2])
+                        img = Image.open(foto_path)
                         img = img.resize((150, 150), Image.Resampling.LANCZOS)
                         foto = ImageTk.PhotoImage(img)
                         self.entradas["foto_label"].config(image=foto)
                         self.entradas["foto_label"].image = foto
                     except Exception as e:
                         messagebox.showerror("Erro", f"Não foi possível carregar a imagem: {e}")
+                else:
+                    self.entradas["foto"].delete(0, tk.END)
+                    self.entradas["foto_label"].config(image="")  # Limpar a imagem se não houver foto
+            else:
+                messagebox.showerror("Erro", f"Aluno com ID {id} não encontrado!")
+                self.view.tela_inicial()
 
     def salvar_instituicao(self, id):
         try:
@@ -248,10 +282,18 @@ class SistemaController:
             if not instituicao:
                 messagebox.showwarning("Aviso", "O campo Instituição é obrigatório!")
                 return
-            # Move ou renomeia a foto com base no ID e nome
-            foto = self.mover_foto(foto_path, "professores", id, nome) if foto_path or id else None
-            # Salva o registro (inserção ou atualização)
-            id = self.model.salvar_professor(id, nome, int(instituicao), foto)
+            # Salvar o registro no banco primeiro, sem a foto
+            new_id = self.model.salvar_professor(id, nome, int(instituicao), None)
+            print(f"Debug: Novo ID gerado/atualizado = {new_id}")
+            # Forçar um commit no banco para garantir consistência
+            self.model.commit()
+            # Agora, mover a foto
+            foto = self.mover_foto(foto_path, "professores", new_id, nome) if foto_path else None
+            print(f"Debug: Caminho da foto após mover_foto = {foto}")
+            if foto:
+                # Atualizar o registro com o caminho da foto
+                self.model.salvar_professor(new_id, nome, int(instituicao), foto)
+                self.model.commit()
             self.view.tela_inicial()
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao salvar professor: {e}")
@@ -305,10 +347,18 @@ class SistemaController:
             if not turma:
                 messagebox.showwarning("Aviso", "O campo Turma é obrigatório!")
                 return
-            # Move ou renomeia a foto com base no ID e nome
-            foto = self.mover_foto(foto_path, "alunos", id, nome) if foto_path or id else None
-            # Salva o registro (inserção ou atualização)
-            id = self.model.salvar_aluno(id, nome, int(turma), foto)
+            # Salvar o registro no banco primeiro, sem a foto
+            new_id = self.model.salvar_aluno(id, nome, int(turma), None)
+            print(f"Debug: Novo ID gerado/atualizado = {new_id}")
+            # Forçar um commit no banco para garantir consistência
+            self.model.commit()
+            # Agora, mover a foto
+            foto = self.mover_foto(foto_path, "alunos", new_id, nome) if foto_path else None
+            print(f"Debug: Caminho da foto após mover_foto = {foto}")
+            if foto:
+                # Atualizar o registro com o caminho da foto
+                self.model.salvar_aluno(new_id, nome, int(turma), foto)
+                self.model.commit()
             self.view.tela_inicial()
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao salvar aluno: {e}")
@@ -335,7 +385,8 @@ class SistemaController:
             # Remove a foto associada antes de excluir o registro
             dados = self.model.executar_query("SELECT foto FROM professor WHERE id = ?", (id,), fetch=True)
             if dados and dados[0][0]:
-                remover_foto(dados[0][0])
+                foto_path = os.path.join(os.path.dirname(__file__), dados[0][0])
+                remover_foto(foto_path)
             self.model.excluir_registro("professor", id)
             self.consulta_professores()  # Recarrega a consulta após exclusão
         except Exception as e:
@@ -375,45 +426,90 @@ class SistemaController:
             # Remove a foto associada antes de excluir o registro
             dados = self.model.executar_query("SELECT foto FROM aluno WHERE id = ?", (id,), fetch=True)
             if dados and dados[0][0]:
-                remover_foto(dados[0][0])
+                foto_path = os.path.join(os.path.dirname(__file__), dados[0][0])
+                remover_foto(foto_path)
             self.model.excluir_registro("aluno", id)
             self.consulta_alunos()  # Recarrega a consulta após exclusão
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao excluir aluno: {e}")
 
     def mover_foto(self, foto_path, tipo, id, nome):
-        imagens_dir = os.path.join(os.path.dirname(__file__), "imagens", tipo)
-        os.makedirs(imagens_dir, exist_ok=True)
+        if id is None:
+            raise ValueError("ID não pode ser None ao mover a foto!")
+        print(f"Debug: Movendo foto - ID={id}, Nome={nome}, Tipo={tipo}, Foto Path={foto_path}")
+        imagens_dir = os.path.join("imagens", tipo)
+        os.makedirs(os.path.join(os.path.dirname(__file__), imagens_dir), exist_ok=True)
         nome_arquivo = f"{str(id).zfill(5)}-{nome.replace(' ', '_')}.jpg"
-        novo_caminho = os.path.join(imagens_dir, nome_arquivo)
+        print(f"Debug: Nome do arquivo gerado = {nome_arquivo}")
+        caminho_relativo = os.path.join(imagens_dir, nome_arquivo)
+        caminho_absoluto = os.path.join(os.path.dirname(__file__), caminho_relativo)
 
-        # Define o nome correto da tabela com base no tipo
         tabela = "professor" if tipo == "professores" else "aluno"
+        
+        #teste
+        teste_dados = self.model.executar_query("SELECT * FROM " + tabela, fetch=True)
+        print(f"Debug: Todos os registros da tabela {tabela} = {teste_dados}")
+        
+        dados = self.model.executar_query(f"SELECT foto FROM {tabela} WHERE id = ?", (id,), fetch=True)
+        print(f"Debug: Resultado da query SELECT foto = {dados}")
+        foto_antiga = dados[0][0] if dados and len(dados) > 0 and dados[0][0] else None
+        print(f"Debug: Foto antiga = {foto_antiga}")
 
-        # Verifica se já existe uma foto associada ao registro
-        if id:
-            dados = self.model.executar_query(f"SELECT foto FROM {tabela} WHERE id = ?", (id,), fetch=True)
-            foto_antiga = dados[0][0] if dados and dados[0][0] else None
-            if foto_antiga and os.path.exists(foto_antiga) and (not foto_path or foto_path == foto_antiga):
-                # Se o nome mudou e não há nova foto, renomeia a foto existente
-                if foto_antiga != novo_caminho:
+        if foto_antiga:
+            foto_antiga_absoluta = os.path.join(os.path.dirname(__file__), foto_antiga)
+            print(f"Debug: Foto antiga absoluta = {foto_antiga_absoluta}, Existe? {os.path.exists(foto_antiga_absoluta)}")
+
+            if not foto_path or os.path.abspath(foto_path) == os.path.abspath(foto_antiga_absoluta):
+                if foto_antiga != caminho_relativo and os.path.exists(foto_antiga_absoluta):
                     try:
-                        os.rename(foto_antiga, novo_caminho)
-                        return novo_caminho
+                        os.rename(foto_antiga_absoluta, caminho_absoluto)
+                        print(f"Debug: Foto renomeada de {foto_antiga_absoluta} para {caminho_absoluto}")
+                        return caminho_relativo
                     except Exception as e:
                         messagebox.showerror("Erro", f"Erro ao renomear foto: {e}")
                         return foto_antiga
                 return foto_antiga
 
-        # Se há uma nova foto ou não havia foto antes, move/copia a nova foto
         if foto_path and os.path.exists(foto_path):
-            try:
-                if os.path.abspath(foto_path) != os.path.abspath(novo_caminho):
-                    shutil.copy(foto_path, novo_caminho)
-                return novo_caminho
-            except Exception as e:
-                messagebox.showerror("Erro", f"Erro ao mover foto: {e}")
-                return None
+            print(f"Debug: Novo caminho absoluto da foto = {os.path.abspath(foto_path)}")
+            if os.path.abspath(foto_path) != os.path.abspath(caminho_absoluto):
+                try:
+                    if foto_antiga and os.path.exists(os.path.join(os.path.dirname(__file__), foto_antiga)):
+                        os.remove(os.path.join(os.path.dirname(__file__), foto_antiga))
+                        print(f"Debug: Foto antiga removida = {os.path.join(os.path.dirname(__file__), foto_antiga)}")
+                    shutil.copy(foto_path, caminho_absoluto)
+                    print(f"Debug: Nova foto copiada para {caminho_absoluto}")
+                except Exception as e:
+                    messagebox.showerror("Erro", f"Erro ao copiar nova foto: {e}")
+                    return None
+            else:
+                print(f"Debug: Caminho da foto não mudou, mantendo {caminho_relativo}")
+                return caminho_relativo
+
+            # Limpeza de duplicatas: buscar e remover fotos com o mesmo ID, mas nome diferente
+            id_prefix = str(id).zfill(5)
+            nome_atual = nome.replace(' ', '_')
+            imagens_path = os.path.join(os.path.dirname(__file__), imagens_dir)
+            print(f"Debug: Iniciando limpeza de duplicatas no diretório {imagens_path}")
+            for arquivo in os.listdir(imagens_path):
+                if arquivo.startswith(id_prefix) and arquivo.endswith('.jpg'):
+                    if arquivo == nome_arquivo:
+                        print(f"Debug: Ignorando arquivo atual {arquivo}")
+                        continue
+                    nome_arquivo_existente = arquivo[len(id_prefix)+1:-4]  # Extrair o nome após o ID e antes da extensão
+                    if nome_arquivo_existente != nome_atual:
+                        arquivo_path = os.path.join(imagens_path, arquivo)
+                        try:
+                            os.remove(arquivo_path)
+                            print(f"Debug: Foto duplicada removida = {arquivo_path}")
+                        except Exception as e:
+                            print(f"Debug: Erro ao remover duplicata {arquivo_path}: {e}")
+                    else:
+                        print(f"Debug: Arquivo {arquivo} corresponde ao nome atual, mantendo")
+
+            return caminho_relativo
+
+        print(f"Debug: Nenhuma foto para processar, retornando None")
         return None
 
     # Exportações
@@ -452,9 +548,12 @@ class SistemaController:
 
         row = 2  # Linha inicial para dados
         temp_files = []  # Lista para rastrear arquivos temporários
+        # Obter o diretório base do projeto
+        base_dir = os.path.dirname(os.path.abspath(__file__))        
         for aluno in self.model.carregar_alunos():
             print(f"Tupla completa do aluno {aluno[1]}: {aluno}")  # Log da tupla completa
-            foto_path = aluno[3] if aluno[3] else None  # Índice 3 é o campo 'foto'
+            # Construir o caminho absoluto a partir do caminho relativo
+            foto_path = os.path.join(base_dir, aluno[3]) if aluno[3] else None
             print(f"Tentando carregar foto para aluno {aluno[1]}: {foto_path} (Tipo: {type(foto_path)})")
 
             if foto_path and isinstance(foto_path, str) and os.path.exists(foto_path):
@@ -527,11 +626,12 @@ class SistemaController:
                 alunos = self.model.carregar_alunos_por_turma(turma_id)
                 print(f"Debug: Alunos retornados = {alunos}")
                 
+                base_dir = os.path.dirname(__file__)
                 # Preparar os dados na thread secundária
                 dados = []
                 for aluno in alunos:
-                    print(f"Debug: Processando aluno = {aluno}")
-                    foto_path = aluno[5] if aluno[5] and os.path.exists(aluno[5]) else os.path.join(os.path.dirname(__file__), "imagens", "00000-sem imagem.jpg")
+                    print(f"Debug: Processando aluno = {aluno}")                    
+                    foto_path = os.path.join(base_dir, aluno[5]) if aluno[5] else os.path.join(base_dir, "imagens", "00000-sem imagem.jpg")
                     if os.path.exists(foto_path):
                         img = Image.open(foto_path)
                         img = img.resize((100, 100), Image.Resampling.LANCZOS)
@@ -621,9 +721,10 @@ class SistemaController:
                 elements.append(Spacer(1, 12))
 
                 elementos_linha = []
+                base_dir = os.path.dirname(__file__)
                 for i, aluno in enumerate(alunos):
-                    print(f"Debug: Processando aluno = {aluno}")
-                    foto_path = aluno[5] if aluno[5] and os.path.exists(aluno[5]) else os.path.join(os.path.dirname(__file__), "imagens", "00000-sem imagem.jpg")
+                    print(f"Debug: Processando aluno = {aluno}")                    
+                    foto_path = os.path.join(base_dir, aluno[5]) if aluno[5] else os.path.join(base_dir, "imagens", "00000-sem imagem.jpg")
                     print(f"Debug: foto_path = {foto_path}")
                     primeiro_nome = aluno[1].split(" ")[0]
                     if os.path.exists(foto_path):
@@ -711,14 +812,15 @@ class SistemaController:
                 temp_dir = os.path.join(os.path.dirname(__file__), "temp")
                 os.makedirs(temp_dir, exist_ok=True)
 
+                base_dir = os.path.dirname(__file__)
                 for i, aluno in enumerate(alunos, start=2):  # Começa na linha 2 por causa do cabeçalho
                     ws.cell(row=i, column=1, value=aluno[0])  # ID
                     ws.cell(row=i, column=2, value=aluno[1])  # Nome
                     ws.cell(row=i, column=3, value=aluno[2])  # Turma
                     ws.cell(row=i, column=4, value=aluno[3])  # Curso
                     ws.cell(row=i, column=5, value=aluno[4])  # Instituição
-                    
-                    foto_path = aluno[5] if aluno[5] and os.path.exists(aluno[5]) else os.path.join(os.path.dirname(__file__), "imagens", "00000-sem imagem.jpg")
+                                        
+                    foto_path = os.path.join(base_dir, aluno[5]) if aluno[5] else os.path.join(base_dir, "imagens", "00000-sem imagem.jpg")
                     if os.path.exists(foto_path):
                         img = Image.open(foto_path)
                         img = img.resize((100, 100), Image.Resampling.LANCZOS)
@@ -783,6 +885,7 @@ class SistemaController:
 
                 table = None
                 row = None
+                base_dir = os.path.dirname(__file__)
                 for i, aluno in enumerate(alunos):
                     print(f"Debug: Processando aluno = {aluno}")
                     if i % 6 == 0:
@@ -795,8 +898,8 @@ class SistemaController:
                         for cell in table.rows[1].cells:
                             cell.width = Inches(1.26)
                         row = 0
-
-                    foto_path = aluno[5] if aluno[5] and os.path.exists(aluno[5]) else os.path.join(os.path.dirname(__file__), "imagens", "00000-sem imagem.jpg")
+                    
+                    foto_path = os.path.join(base_dir, aluno[5]) if aluno[5] else os.path.join(base_dir, "imagens", "00000-sem imagem.jpg")
                     print(f"Debug: foto_path = {foto_path}")
                     cell_img = table.rows[0].cells[i % 6]
                     cell_text = table.rows[1].cells[i % 6]
@@ -826,7 +929,7 @@ class SistemaController:
                     footer = section.footer
                     footer_paragraph = footer.paragraphs[0]
                     footer_paragraph.text = f"Página {footer_paragraph.add_run().add_break()} " \
-                                            f"Documento gerado em {agora.strftime('%d/%m/%Y às %H:%M')}"
+                                            f"Documento gerado em {agora.strftime('%d/%m/%Y, às %H:%M')}"
                     footer_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     footer_paragraph.runs[0].font.size = Pt(8)
 
@@ -843,21 +946,53 @@ class SistemaController:
         self.view.mostrar_carregando()
         threading.Thread(target=tarefa, daemon=True).start()
 
-    def tela_inicial(self):
-        frame = self.view.novo_frame()
-        tk.Label(frame, text="Bem-vindo ao Sistema de Controle de Alunos", font=("Arial", 20, "bold"), bg="#FFFFFF", fg="#1A1A1A").pack(pady=20)
-        tk.Label(frame, text="Este sistema permite gerenciar instituições, professores, cursos, turmas e alunos de forma eficiente.\nUtilize os menus acima para cadastrar, consultar e exportar dados.", font=("Arial", 10), bg="#FFFFFF", fg="#1A1A1A", justify="center").pack(pady=10)
-        
-        inst_count = len(self.model.carregar_instituicoes())
-        prof_count = len(self.model.carregar_professores())
-        curso_count = len(self.model.carregar_cursos())
-        turma_count = len(self.model.carregar_turmas())
-        aluno_count = len(self.model.carregar_alunos())
-        
-        stats_frame = tk.Frame(frame, bg="#F8F9FA", bd=2, relief="groove")
-        stats_frame.pack(pady=10, padx=10, fill=tk.X)
-        tk.Label(stats_frame, text=f"Instituições: {inst_count}", font=("Arial", 10), bg="#F8F9FA", fg="#1A1A1A", padx=10, pady=5).pack(side=tk.LEFT)
-        tk.Label(stats_frame, text=f"Professores: {prof_count}", font=("Arial", 10), bg="#F8F9FA", fg="#1A1A1A", padx=10, pady=5).pack(side=tk.LEFT)
-        tk.Label(stats_frame, text=f"Cursos: {curso_count}", font=("Arial", 10), bg="#F8F9FA", fg="#1A1A1A", padx=10, pady=5).pack(side=tk.LEFT)
-        tk.Label(stats_frame, text=f"Turmas: {turma_count}", font=("Arial", 10), bg="#F8F9FA", fg="#1A1A1A", padx=10, pady=5).pack(side=tk.LEFT)
-        tk.Label(stats_frame, text=f"Alunos: {aluno_count}", font=("Arial", 10), bg="#F8F9FA", fg="#1A1A1A", padx=10, pady=5).pack(side=tk.LEFT)
+def tela_inicial(self):
+    frame = self.view.novo_frame()
+    tk.Label(frame, text="Bem-vindo ao Sistema de Controle de Alunos", font=("Arial", 20, "bold"), bg="#FFFFFF", fg="#1A1A1A").pack(pady=20)
+    tk.Label(frame, text="Este sistema permite gerenciar instituições, professores, cursos, turmas e alunos de forma eficiente.\nUtilize os menus acima para cadastrar, consultar e exportar dados.", font=("Arial", 10), bg="#FFFFFF", fg="#1A1A1A", justify="center").pack(pady=10)
+
+    stats_frame = tk.Frame(frame, bg="#F8F9FA", bd=2, relief="groove")
+    stats_frame.pack(pady=10, padx=10, fill=tk.X)
+
+    # Labels para as contagens (inicialmente vazias)
+    inst_label = tk.Label(stats_frame, text="Instituições: Carregando...", font=("Arial", 10), bg="#F8F9FA", fg="#1A1A1A", padx=10, pady=5)
+    inst_label.pack(side=tk.LEFT)
+    prof_label = tk.Label(stats_frame, text="Professores: Carregando...", font=("Arial", 10), bg="#F8F9FA", fg="#1A1A1A", padx=10, pady=5)
+    prof_label.pack(side=tk.LEFT)
+    curso_label = tk.Label(stats_frame, text="Cursos: Carregando...", font=("Arial", 10), bg="#F8F9FA", fg="#1A1A1A", padx=10, pady=5)
+    curso_label.pack(side=tk.LEFT)
+    turma_label = tk.Label(stats_frame, text="Turmas: Carregando...", font=("Arial", 10), bg="#F8F9FA", fg="#1A1A1A", padx=10, pady=5)
+    turma_label.pack(side=tk.LEFT)
+    aluno_label = tk.Label(stats_frame, text="Alunos: Carregando...", font=("Arial", 10), bg="#F8F9FA", fg="#1A1A1A", padx=10, pady=5)
+    aluno_label.pack(side=tk.LEFT)
+
+    # Função para carregar as contagens assincronamente
+    def carregar_contagens():
+        try:
+            inst_count = len(self.model.carregar_instituicoes())
+            prof_count = len(self.model.carregar_professores())
+            curso_count = len(self.model.carregar_cursos())
+            turma_count = len(self.model.carregar_turmas())
+            aluno_count = len(self.model.carregar_alunos())
+            print(f"Debug: Contagens - Instituições={inst_count}, Professores={prof_count}, Cursos={curso_count}, Turmas={turma_count}, Alunos={aluno_count}")
+
+            # Atualizar os labels na thread principal
+            self.view.root.after(0, lambda: [
+                inst_label.config(text=f"Instituições: {inst_count}"),
+                prof_label.config(text=f"Professores: {prof_count}"),
+                curso_label.config(text=f"Cursos: {curso_count}"),
+                turma_label.config(text=f"Turmas: {turma_count}"),
+                aluno_label.config(text=f"Alunos: {aluno_count}")
+            ])
+        except Exception as e:
+            print(f"Debug: Erro ao carregar contagens: {e}")
+            self.view.root.after(0, lambda: [
+                inst_label.config(text="Instituições: Erro"),
+                prof_label.config(text="Professores: Erro"),
+                curso_label.config(text="Cursos: Erro"),
+                turma_label.config(text="Turmas: Erro"),
+                aluno_label.config(text="Alunos: Erro")
+            ])
+
+    # Executar o carregamento em uma thread separada
+    threading.Thread(target=carregar_contagens, daemon=True).start()
