@@ -282,18 +282,38 @@ class SistemaController:
             if not instituicao:
                 messagebox.showwarning("Aviso", "O campo Instituição é obrigatório!")
                 return
+
+            # Carregar o registro atual do banco, se for uma edição
+            foto_antiga = None
+            if id:
+                dados = self.model.executar_query("SELECT foto FROM professor WHERE id = ?", (id,), fetch=True)
+                foto_antiga = dados[0][0] if dados and len(dados) > 0 and dados[0][0] else None
+                print(f"Debug: Foto antiga carregada do banco = {foto_antiga}")
+
+            # Determinar o caminho da foto a ser usado
+            foto_path_final = foto_path
+            if foto_path and foto_antiga:
+                foto_antiga_absoluta = os.path.join(os.path.dirname(__file__), foto_antiga)
+                if os.path.abspath(foto_path) == os.path.abspath(foto_antiga_absoluta):
+                    print("Debug: O caminho da foto não mudou, usando foto antiga")
+                    foto_path_final = foto_antiga_absoluta  # Evitar cópia desnecessária
+                else:
+                    print("Debug: Nova foto selecionada, usando foto_path")
+
             # Salvar o registro no banco primeiro, sem a foto
             new_id = self.model.salvar_professor(id, nome, int(instituicao), None)
             print(f"Debug: Novo ID gerado/atualizado = {new_id}")
-            # Forçar um commit no banco para garantir consistência
             self.model.commit()
-            # Agora, mover a foto
-            foto = self.mover_foto(foto_path, "professores", new_id, nome) if foto_path else None
+
+            # Mover a foto (ou renomear, se necessário) usando o new_id
+            foto = self.mover_foto(foto_path_final, "professores", new_id, nome) if foto_path_final else None
             print(f"Debug: Caminho da foto após mover_foto = {foto}")
+
+            # Atualizar o registro com o caminho da foto
             if foto:
-                # Atualizar o registro com o caminho da foto
                 self.model.salvar_professor(new_id, nome, int(instituicao), foto)
                 self.model.commit()
+
             self.view.tela_inicial()
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao salvar professor: {e}")
@@ -347,18 +367,38 @@ class SistemaController:
             if not turma:
                 messagebox.showwarning("Aviso", "O campo Turma é obrigatório!")
                 return
+
+            # Carregar o registro atual do banco, se for uma edição
+            foto_antiga = None
+            if id:
+                dados = self.model.executar_query("SELECT foto FROM aluno WHERE id = ?", (id,), fetch=True)
+                foto_antiga = dados[0][0] if dados and len(dados) > 0 and dados[0][0] else None
+                print(f"Debug: Foto antiga carregada do banco = {foto_antiga}")
+
+            # Determinar o caminho da foto a ser usado
+            foto_path_final = foto_path
+            if foto_path and foto_antiga:
+                foto_antiga_absoluta = os.path.join(os.path.dirname(__file__), foto_antiga)
+                if os.path.abspath(foto_path) == os.path.abspath(foto_antiga_absoluta):
+                    print("Debug: O caminho da foto não mudou, usando foto antiga")
+                    foto_path_final = foto_antiga_absoluta  # Evitar cópia desnecessária
+                else:
+                    print("Debug: Nova foto selecionada, usando foto_path")
+
             # Salvar o registro no banco primeiro, sem a foto
             new_id = self.model.salvar_aluno(id, nome, int(turma), None)
             print(f"Debug: Novo ID gerado/atualizado = {new_id}")
-            # Forçar um commit no banco para garantir consistência
             self.model.commit()
-            # Agora, mover a foto
-            foto = self.mover_foto(foto_path, "alunos", new_id, nome) if foto_path else None
+
+            # Mover a foto (ou renomear, se necessário) usando o new_id
+            foto = self.mover_foto(foto_path_final, "alunos", new_id, nome) if foto_path_final else None
             print(f"Debug: Caminho da foto após mover_foto = {foto}")
+
+            # Atualizar o registro com o caminho da foto
             if foto:
-                # Atualizar o registro com o caminho da foto
                 self.model.salvar_aluno(new_id, nome, int(turma), foto)
                 self.model.commit()
+
             self.view.tela_inicial()
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao salvar aluno: {e}")
@@ -444,43 +484,22 @@ class SistemaController:
         caminho_relativo = os.path.join(imagens_dir, nome_arquivo)
         caminho_absoluto = os.path.join(os.path.dirname(__file__), caminho_relativo)
 
-        tabela = "professor" if tipo == "professores" else "aluno"
-        
-        #teste
-        teste_dados = self.model.executar_query("SELECT * FROM " + tabela, fetch=True)
-        print(f"Debug: Todos os registros da tabela {tabela} = {teste_dados}")
-        
-        dados = self.model.executar_query(f"SELECT foto FROM {tabela} WHERE id = ?", (id,), fetch=True)
-        print(f"Debug: Resultado da query SELECT foto = {dados}")
-        foto_antiga = dados[0][0] if dados and len(dados) > 0 and dados[0][0] else None
-        print(f"Debug: Foto antiga = {foto_antiga}")
-
-        if foto_antiga:
-            foto_antiga_absoluta = os.path.join(os.path.dirname(__file__), foto_antiga)
-            print(f"Debug: Foto antiga absoluta = {foto_antiga_absoluta}, Existe? {os.path.exists(foto_antiga_absoluta)}")
-
-            if not foto_path or os.path.abspath(foto_path) == os.path.abspath(foto_antiga_absoluta):
-                if foto_antiga != caminho_relativo and os.path.exists(foto_antiga_absoluta):
-                    try:
-                        os.rename(foto_antiga_absoluta, caminho_absoluto)
-                        print(f"Debug: Foto renomeada de {foto_antiga_absoluta} para {caminho_absoluto}")
-                        return caminho_relativo
-                    except Exception as e:
-                        messagebox.showerror("Erro", f"Erro ao renomear foto: {e}")
-                        return foto_antiga
-                return foto_antiga
-
+        # Se o foto_path for um caminho absoluto e já existir, tentamos renomear
         if foto_path and os.path.exists(foto_path):
             print(f"Debug: Novo caminho absoluto da foto = {os.path.abspath(foto_path)}")
             if os.path.abspath(foto_path) != os.path.abspath(caminho_absoluto):
                 try:
-                    if foto_antiga and os.path.exists(os.path.join(os.path.dirname(__file__), foto_antiga)):
-                        os.remove(os.path.join(os.path.dirname(__file__), foto_antiga))
-                        print(f"Debug: Foto antiga removida = {os.path.join(os.path.dirname(__file__), foto_antiga)}")
-                    shutil.copy(foto_path, caminho_absoluto)
-                    print(f"Debug: Nova foto copiada para {caminho_absoluto}")
+                    # Se o caminho de origem for diferente do destino, renomear ou copiar
+                    if os.path.abspath(foto_path).startswith(os.path.abspath(imagens_dir)):
+                        # Se a foto já está no diretório imagens, apenas renomear
+                        os.rename(foto_path, caminho_absoluto)
+                        print(f"Debug: Foto renomeada de {foto_path} para {caminho_absoluto}")
+                    else:
+                        # Se é uma nova foto, copiar para o destino
+                        shutil.copy(foto_path, caminho_absoluto)
+                        print(f"Debug: Nova foto copiada para {caminho_absoluto}")
                 except Exception as e:
-                    messagebox.showerror("Erro", f"Erro ao copiar nova foto: {e}")
+                    messagebox.showerror("Erro", f"Erro ao mover/renomear foto: {e}")
                     return None
             else:
                 print(f"Debug: Caminho da foto não mudou, mantendo {caminho_relativo}")
