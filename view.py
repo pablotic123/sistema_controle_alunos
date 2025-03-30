@@ -1,4 +1,3 @@
-# view.py
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
@@ -34,6 +33,12 @@ class SistemaView:
 
     def mostrar_mensagem(self, titulo, mensagem):
         messagebox.showinfo(titulo, mensagem)
+
+    def mostrar_erro(self, mensagem):
+        messagebox.showerror("Erro", mensagem)
+
+    def mostrar_aviso(self, mensagem):
+        messagebox.showwarning("Aviso", mensagem)
 
     def configurar_estilo(self):
         self.style.theme_use("clam")
@@ -80,15 +85,20 @@ class SistemaView:
 
         carometro_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Carômetro", menu=carometro_menu)
-        ##carometro_menu.add_command(label="Visualizar Carômetro", command=lambda: None)
         carometro_menu.add_command(label="Exportar PDF", command=lambda: None)
         carometro_menu.add_command(label="Exportar Excel", command=lambda: None)
         carometro_menu.add_command(label="Exportar Word", command=lambda: None)
-        menubar.add_command(label="Sair", command=self.root.quit)
+        menubar.add_command(label="Sair", command=self.sair)
+
+    def sair(self):
+        """Método para encerrar a aplicação, garantindo que o banco seja fechado."""
+        if self.controller:
+            self.controller.fechar_conexao()
+        self.root.quit()
 
     def consulta_generica(self, titulo, colunas, atualizar_callback, duplo_clique_callback):
         frame = self.novo_frame()
-        tk.Label(frame, text=titulo, font=("Arial", 16, "bold"), bg=self.BG_COLOR, fg=self.FG_COLOR).pack(pady=10, fill=tk.X)
+        tk.Label(frame, text=titulo, font=self.FONT_TITULO, bg=self.BG_COLOR, fg=self.FG_COLOR).pack(pady=10, fill=tk.X)
         form_frame = tk.Frame(frame, bg=self.BG_COLOR, padx=20, pady=10)
         form_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -115,7 +125,7 @@ class SistemaView:
 
     def cadastro_generico(self, titulo, campos, salvar_callback, excluir_callback=None, cancelar_callback=None):
         frame = self.novo_frame()
-        tk.Label(frame, text=titulo, font=("Arial", 16, "bold"), bg=self.BG_COLOR, fg=self.FG_COLOR).pack(pady=10, fill=tk.X)
+        tk.Label(frame, text=titulo, font=self.FONT_TITULO, bg=self.BG_COLOR, fg=self.FG_COLOR).pack(pady=10, fill=tk.X)
         form_frame = tk.Frame(frame, bg=self.BG_COLOR, padx=20, pady=10)
         form_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -129,7 +139,7 @@ class SistemaView:
                 entradas[label.lower()] = entry
             elif tipo == "combo":
                 var = tk.StringVar()
-                combo = ttk.Combobox(form_frame, textvariable=var, values=opcoes, font=self.FONT, width=47)
+                combo = ttk.Combobox(form_frame, textvariable=var, values=opcoes, font=self.FONT, width=47, state="readonly")
                 combo.grid(row=i, column=1, pady=5, sticky="w")
                 entradas[label.lower()] = combo
             elif tipo == "foto":
@@ -152,26 +162,32 @@ class SistemaView:
 
     def selecionar_foto(self, entry, foto_label):
         arquivo = filedialog.askopenfilename(filetypes=[("Imagens", "*.jpg;*.jpeg;*.png")])
-        if arquivo and os.path.exists(arquivo):
-            entry.delete(0, tk.END)
-            entry.insert(0, arquivo)
+        if arquivo:
+            if not os.path.exists(arquivo):
+                self.mostrar_erro("O arquivo selecionado não existe!")
+                return
             try:
                 img = Image.open(arquivo)
-                img = img.resize((150, 150), Image.Resampling.LANCZOS)  # Tamanho maior como na versão anterior
+                img.verify()  # Verifica se o arquivo é uma imagem válida
+                img = Image.open(arquivo)  # Reabre o arquivo após verificação
+                img = img.resize((150, 150), Image.Resampling.LANCZOS)
                 foto = ImageTk.PhotoImage(img)
+                entry.delete(0, tk.END)
+                entry.insert(0, arquivo)
                 foto_label.config(image=foto)
                 foto_label.image = foto  # Manter referência
             except Exception as e:
-                messagebox.showerror("Erro", f"Não foi possível carregar a imagem: {e}")
+                self.mostrar_erro(f"Não foi possível carregar a imagem: {e}")
+                entry.delete(0, tk.END)
 
     def exportar_carometro(self, tipo, exportar_callback):
         frame = self.novo_frame()
-        tk.Label(frame, text=f"Exportar Carômetro ({tipo})", font=("Arial", 16, "bold"), bg=self.BG_COLOR, fg=self.FG_COLOR).pack(pady=10, fill=tk.X)
+        tk.Label(frame, text=f"Exportar Carômetro ({tipo})", font=self.FONT_TITULO, bg=self.BG_COLOR, fg=self.FG_COLOR).pack(pady=10, fill=tk.X)
         tk.Label(frame, text="Selecione a Turma:", font=self.FONT, bg=self.BG_COLOR, fg=self.FG_COLOR).pack(pady=5)
         turma_var = tk.StringVar()
-        combo = ttk.Combobox(frame, textvariable=turma_var, font=self.FONT, width=50)
+        combo = ttk.Combobox(frame, textvariable=turma_var, font=self.FONT, width=50, state="readonly")
         combo.pack(pady=5)
-        ttk.Button(frame, text=f"Exportar {tipo}", command=exportar_callback, style="Save.TButton").pack(pady=10)
+        ttk.Button(frame, text=f"Exportar {tipo}", command=lambda: [self.mostrar_carregando(), exportar_callback()]).pack(pady=10)
         return combo
 
     def atualizar_tabela(self, tree, dados):
@@ -192,13 +208,13 @@ class SistemaView:
         tk.Label(self.current_frame, text="Carômetro", font=self.FONT_TITULO, bg=self.BG_COLOR, fg=self.FG_COLOR).pack(pady=10)
         
         tk.Label(self.current_frame, text="Selecione a turma:", font=self.FONT, bg=self.BG_COLOR, fg=self.FG_COLOR).pack()
-        turmas = [f"{t[0]} - {t[1]}" for t in self.controller.model.carregar_turmas()]  # Ajustado de self.model para self.controller.model
+        turmas = [f"{t[0]} - {t[1]}" for t in self.controller.model.carregar_turmas()] if self.controller else []
         turmas.insert(0, "Todas")
         self.turma_combo = ttk.Combobox(self.current_frame, values=turmas, state="readonly", font=self.FONT)
         self.turma_combo.set("Todas")
         self.turma_combo.pack(pady=5)
         
-        tk.Button(self.current_frame, text="Visualizar Carômetro", command=callback_atualizar, font=self.FONT, bg=self.BTN_COLOR, fg=self.FG_COLOR).pack(pady=5)
+        tk.Button(self.current_frame, text="Visualizar Carômetro", command=lambda: [self.mostrar_carregando(), callback_atualizar()], font=self.FONT, bg=self.BTN_COLOR, fg=self.FG_COLOR).pack(pady=5)
         
         canvas = tk.Canvas(self.current_frame, bg=self.BG_COLOR)
         scrollbar = ttk.Scrollbar(self.current_frame, orient="vertical", command=canvas.yview)
@@ -237,4 +253,4 @@ class SistemaView:
     def fechar_carregando(self):
         if hasattr(self, "carregando_modal") and self.carregando_modal.winfo_exists():
             self.carregando_modal.grab_release()
-            self.carregando_modal.destroy()    
+            self.carregando_modal.destroy()
